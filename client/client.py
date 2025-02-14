@@ -1,3 +1,7 @@
+import socket
+
+
+
 # Message Interface Component
 def handle_message_input():
     # --message flag handling
@@ -7,13 +11,14 @@ def handle_message_input():
 
 # Network Handler Component
 class NetworkClient:
-    def __init__(self, endpoint):
-        # Retry mechanism with backoff
-        pass  # Temporary placeholder
+    def __init__(self, host='localhost', port=8080):
+        self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.sock.connect((host, port))
     
     def send_message(self, message):
-        # Connection management
-        pass  # Temporary placeholder
+        self.sock.sendall(message.encode())
+        response = self.sock.recv(1024)
+        return response.decode()
 
 # Test Suite Component
 class TestSuite:
@@ -43,6 +48,7 @@ class ClientConfig:
     pass  # Required for empty class
 
 if __name__ == "__main__":
-    # CLI argument parsing
-    # Main execution flow 
-    pass  # Main execution placeholder 
+    client = NetworkClient()
+    while True:
+        msg = input("Enter message: ")
+        print(client.send_message(msg + "\n")) 

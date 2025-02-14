@@ -1,10 +1,68 @@
 package main
 
+import (
+    "fmt"
+    "net"
+    "os"
+    "os/signal"
+    "syscall"
+)
+
 // Network Listener Component
-func startServer() {
-    // TCP/UDP port binding
-    // Concurrent connections (goroutines)
-    // Client authentication system
+func startServer(cfg Config) {
+    // 1. TCP Port Binding
+    listener, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.Port))
+    if err != nil {
+        fmt.Printf("Failed to start server: %v\n", err)
+        os.Exit(1)
+    }
+    defer listener.Close()
+    
+    fmt.Printf("Server listening on port %d\n", cfg.Port)
+
+    // 2. Concurrent Connection Handling
+    connChan := make(chan net.Conn)
+    go func() {
+        for {
+            conn, err := listener.Accept()
+            if err != nil {
+                fmt.Println("Error accepting connection:", err)
+                continue
+            }
+            connChan <- conn
+        }
+    }()
+
+    // Server shutdown handling
+    stop := make(chan os.Signal, 1)
+    signal.Notify(stop, syscall.SIGINT, syscall.SIGTERM)
+
+    for {
+        select {
+        case conn := <-connChan:
+            go handleConnection(conn) // Directly handle connection
+        case <-stop:
+            fmt.Println("\nServer shutting down...")
+            return
+        }
+    }
+}
+
+func handleConnection(conn net.Conn) {
+    defer conn.Close()
+    fmt.Printf("Connection from %s\n", conn.RemoteAddr())
+    
+    // Simple echo server
+    buf := make([]byte, 1024)
+    for {
+        n, err := conn.Read(buf)
+        if err != nil {
+            break
+        }
+        msg := string(buf[:n])
+        fmt.Printf("Received: %s", msg)
+        conn.Write([]byte("Echo: " + msg))
+    }
 }
 
 // Configuration System
@@ -15,8 +73,10 @@ type Config struct {
 }
 
 func loadConfig() Config {
-    // Dynamic reload capability
-    // Default values fallback
+    return Config{
+        Port:           8080,  // Default port
+        MaxConnections: 1000, // Default max connections
+    }
 }
 
 // Log Processing Component
@@ -49,5 +109,5 @@ func securityChecks() {
 
 func main() {
     cfg := loadConfig()
-    startServer()
+    startServer(cfg)
 } 
