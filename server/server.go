@@ -77,7 +77,6 @@ func handleConnection(conn net.Conn, rl *RateLimiter, cfg *Config) {
 
 // Configuration System
 type Config struct {
-	// JSON/YAML config fields
 	Port            int      `yaml:"port"`
 	MaxConnections  int      `yaml:"max_connections"`
 	LogFormat       string   `yaml:"log_format"`

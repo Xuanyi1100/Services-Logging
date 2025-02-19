@@ -4,13 +4,6 @@ import time
 import threading
 import random
 
-# Message Interface Component
-def handle_message_input():
-    # --message flag handling
-    # --test flag for automated tests
-    # Message type validation (INFO/WARN/ERROR)
-    pass
-
 # Network Handler Component
 class NetworkClient:
     def __init__(self, host='localhost', port=8080):
@@ -53,10 +46,6 @@ class TestSuite:
         for t in threads:
             t.join()
     
-    @staticmethod
-    def validate_formats():
-        # Format validation tests
-        pass
 
     @staticmethod
     def run_stress_test(host, port, rate):
