@@ -1,8 +1,8 @@
 port: 8080
 max_connections: 100
-log_format: "[%s] %s: %s"
+log_format: "[%s] [Client-%s]: %s"
 udp_port: 8081
 rate_limit: 10
 log_path: "./logs/app.log"
-log_max_size: 1024 # 10MB
+log_max_size: 1048576 # 1MB
 client_timeout: 30

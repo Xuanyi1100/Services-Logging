@@ -5,6 +5,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"strings"
 	"sync"
 	"syscall"
@@ -45,7 +46,7 @@ func startServer(cfg Config, rl *RateLimiter) {
 	for {
 		select {
 		case conn := <-connChan:
-			go handleConnection(conn, rl)
+			go handleConnection(conn, rl, &cfg)
 		case <-stop:
 			fmt.Println("\nServer shutting down...")
 			return
@@ -53,7 +54,7 @@ func startServer(cfg Config, rl *RateLimiter) {
 	}
 }
 
-func handleConnection(conn net.Conn, rl *RateLimiter) {
+func handleConnection(conn net.Conn, rl *RateLimiter, cfg *Config) {
 	defer conn.Close()
 
 	// Get client ID (simple example)
@@ -68,7 +69,7 @@ func handleConnection(conn net.Conn, rl *RateLimiter) {
 		msg := string(buf[:n])
 
 		// Process log with validation and rate limiting
-		processLog(conn, clientID, msg, rl)
+		processLog(conn, clientID, msg, rl, cfg)
 
 		conn.Write([]byte("ACK: " + msg))
 	}
@@ -142,7 +143,7 @@ func (rl *RateLimiter) Allow(clientID string) bool {
 }
 
 // Updated Log Processing Component
-func processLog(conn net.Conn, clientID string, message string, rl *RateLimiter) {
+func processLog(conn net.Conn, clientID string, message string, rl *RateLimiter, cfg *Config) {
 	// 1. Format validation
 	if !isValidMessage(message) {
 		fmt.Printf("Invalid message format from %s\n", clientID)
@@ -152,8 +153,8 @@ func processLog(conn net.Conn, clientID string, message string, rl *RateLimiter)
 	// 2. Timestamp standardization
 	timestamp := time.Now().UTC().Format(time.RFC3339)
 
-	// 3. Client ID injection
-	logEntry := fmt.Sprintf("[%s] %s: %s", timestamp, clientID, message)
+	// 3. log using cfg format
+	logEntry := fmt.Sprintf(cfg.LogFormat, timestamp, clientID, message)
 
 	// 4. Rate limiting (token bucket per client)
 	if !rl.Allow(clientID) {
@@ -222,10 +223,13 @@ func (lw *LogWriter) rotate() error {
 	if _, err := os.Stat(lw.filePath); err == nil {
 		// Find next available backup number
 		var backupNum int
+		ext := filepath.Ext(lw.filePath)             // Get extension (.log)
+		base := strings.TrimSuffix(lw.filePath, ext) // Get filename without extension
+
 		for {
-			backupPath := fmt.Sprintf("%s.%d", lw.filePath, backupNum)
+			// New format: base + number + extension (app0.log, app1.log)
+			backupPath := fmt.Sprintf("%s%d%s", base, backupNum, ext)
 			if _, err := os.Stat(backupPath); os.IsNotExist(err) {
-				// Found an available backup number
 				if err := os.Rename(lw.filePath, backupPath); err != nil {
 					return fmt.Errorf("failed to rotate log file: %v", err)
 				}
