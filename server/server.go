@@ -9,10 +9,12 @@ import (
 	"sync"
 	"syscall"
 	"time"
+
+	"gopkg.in/yaml.v3"
 )
 
 // Network Listener Component
-func startServer(cfg Config) {
+func startServer(cfg Config, rl *RateLimiter) {
 	// 1. TCP Port Binding
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.Port))
 	if err != nil {
@@ -43,7 +45,7 @@ func startServer(cfg Config) {
 	for {
 		select {
 		case conn := <-connChan:
-			go handleConnection(conn) // Directly handle connection
+			go handleConnection(conn, rl)
 		case <-stop:
 			fmt.Println("\nServer shutting down...")
 			return
@@ -51,7 +53,7 @@ func startServer(cfg Config) {
 	}
 }
 
-func handleConnection(conn net.Conn) {
+func handleConnection(conn net.Conn, rl *RateLimiter) {
 	defer conn.Close()
 
 	// Get client ID (simple example)
@@ -66,7 +68,7 @@ func handleConnection(conn net.Conn) {
 		msg := string(buf[:n])
 
 		// Process log with validation and rate limiting
-		processLog(clientID, msg)
+		processLog(conn, clientID, msg, rl)
 
 		conn.Write([]byte("ACK: " + msg))
 	}
@@ -75,15 +77,26 @@ func handleConnection(conn net.Conn) {
 // Configuration System
 type Config struct {
 	// JSON/YAML config fields
-	Port           int
-	MaxConnections int
+	Port           int    `yaml:"port"`
+	MaxConnections int    `yaml:"max_connections"`
+	LogFormat      string `yaml:"log_format"`
+	RateLimit      int    `yaml:"rate_limit"`
+	LogPath        string `yaml:"log_path"`       // Where to store logs
+	LogMaxSize     int64  `yaml:"log_max_size"`   // Max file size before rotation
+	ClientTimeout  int    `yaml:"client_timeout"` // In seconds
 }
 
 func loadConfig() Config {
-	return Config{
-		Port:           8080, // Default port
-		MaxConnections: 1000, // Default max connections
+	data, err := os.ReadFile("config.yaml")
+	if err != nil {
+		panic(fmt.Errorf("config error: %v", err))
 	}
+
+	var cfg Config
+	if err := yaml.Unmarshal(data, &cfg); err != nil {
+		panic(fmt.Errorf("invalid config: %v", err))
+	}
+	return cfg
 }
 
 // Rate limiter structure, token bucket per client
@@ -91,12 +104,14 @@ type RateLimiter struct {
 	tokens    map[string]int
 	lastReset time.Time
 	mu        sync.Mutex
+	cfg       *Config
 }
 
-func NewRateLimiter() *RateLimiter {
+func NewRateLimiter(cfg *Config) *RateLimiter {
 	return &RateLimiter{
 		tokens:    make(map[string]int),
 		lastReset: time.Now(),
+		cfg:       cfg,
 	}
 }
 
@@ -107,13 +122,13 @@ func (rl *RateLimiter) Allow(clientID string) bool {
 
 	// Initialize client if not exists
 	if _, exists := rl.tokens[clientID]; !exists {
-		rl.tokens[clientID] = 10 // Initial token count
+		rl.tokens[clientID] = rl.cfg.RateLimit
 	}
 
-	// Reset tokens every minute
-	if time.Since(rl.lastReset) > time.Minute {
+	// Reset tokens every Second
+	if time.Since(rl.lastReset) > time.Second {
 		for k := range rl.tokens {
-			rl.tokens[k] = 10
+			rl.tokens[k] = rl.cfg.RateLimit
 		}
 		rl.lastReset = time.Now()
 	}
@@ -127,7 +142,7 @@ func (rl *RateLimiter) Allow(clientID string) bool {
 }
 
 // Updated Log Processing Component
-func processLog(clientID string, message string) {
+func processLog(conn net.Conn, clientID string, message string, rl *RateLimiter) {
 	// 1. Format validation
 	if !isValidMessage(message) {
 		fmt.Printf("Invalid message format from %s\n", clientID)
@@ -141,7 +156,8 @@ func processLog(clientID string, message string) {
 	logEntry := fmt.Sprintf("[%s] %s: %s", timestamp, clientID, message)
 
 	// 4. Rate limiting (token bucket per client)
-	if !rateLimiter.Allow(clientID) {
+	if !rl.Allow(clientID) {
+		conn.Write([]byte("RATE_LIMITED"))
 		fmt.Printf("Rate limit exceeded for %s\n", clientID)
 		return
 	}
@@ -152,8 +168,7 @@ func processLog(clientID string, message string) {
 
 // Helper functions
 var (
-	rateLimiter = NewRateLimiter()
-	logQueue    = make(chan string, 1000) // Buffered channel
+	logQueue = make(chan string, 1000)
 )
 
 func isValidMessage(msg string) bool {
@@ -170,10 +185,10 @@ type LogWriter struct {
 	mu          sync.Mutex
 }
 
-func NewLogWriter(path string) *LogWriter {
+func NewLogWriter(path string, maxSize int64) *LogWriter {
 	return &LogWriter{
 		filePath: path,
-		maxSize:  10 * 1024 * 1024, // 10MB
+		maxSize:  maxSize, // Use provided size
 	}
 }
 
@@ -198,35 +213,45 @@ func (lw *LogWriter) Write(entry string) error {
 }
 
 func (lw *LogWriter) rotate() error {
+	// Close current file if open
 	if lw.currentFile != nil {
 		lw.currentFile.Close()
 	}
 
+	// Check if file exists
+	if _, err := os.Stat(lw.filePath); err == nil {
+		// Find next available backup number
+		var backupNum int
+		for {
+			backupPath := fmt.Sprintf("%s.%d", lw.filePath, backupNum)
+			if _, err := os.Stat(backupPath); os.IsNotExist(err) {
+				// Found an available backup number
+				if err := os.Rename(lw.filePath, backupPath); err != nil {
+					return fmt.Errorf("failed to rotate log file: %v", err)
+				}
+				break
+			}
+			backupNum++
+		}
+	}
+
+	// Create new file
 	newFile, err := os.OpenFile(lw.filePath, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
 	if err != nil {
-		return err
+		return fmt.Errorf("failed to create new log file: %v", err)
 	}
 	lw.currentFile = newFile
 	return nil
 }
 
-// Health Monitoring
-func monitorHealth() {
-	// Connection stats tracking
-	// Resource usage metrics
-}
-
-// Security Features
-func securityChecks() {
-	// Input sanitization
-	// DOS protection (request throttling)
-}
-
 func main() {
 	cfg := loadConfig()
 
+	// Initialize rate limiter with config
+	rateLimiter := NewRateLimiter(&cfg)
+
 	// Initialize log writer
-	writer := NewLogWriter("app.log")
+	writer := NewLogWriter(cfg.LogPath, cfg.LogMaxSize)
 
 	// Start log consumer
 	go func() {
@@ -237,5 +262,14 @@ func main() {
 		}
 	}()
 
-	startServer(cfg)
+	// Implement dynamic config reload
+	sighup := make(chan os.Signal, 1)
+	signal.Notify(sighup, syscall.SIGHUP)
+	go func() {
+		for range sighup {
+			cfg = loadConfig()
+		}
+	}()
+
+	startServer(cfg, rateLimiter)
 }
