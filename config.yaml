@@ -6,3 +6,9 @@ rate_limit: 10
 log_path: "./logs/app.log"
 log_max_size: 1048576 # 1MB
 client_timeout: 30
+allowed_prefixes:
+  - "INFO:"
+  - "WARN:" 
+  - "ERROR:"
+  - "DEBUG:"
+  - "AUDIT:"

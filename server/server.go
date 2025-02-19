@@ -78,13 +78,14 @@ func handleConnection(conn net.Conn, rl *RateLimiter, cfg *Config) {
 // Configuration System
 type Config struct {
 	// JSON/YAML config fields
-	Port           int    `yaml:"port"`
-	MaxConnections int    `yaml:"max_connections"`
-	LogFormat      string `yaml:"log_format"`
-	RateLimit      int    `yaml:"rate_limit"`
-	LogPath        string `yaml:"log_path"`       // Where to store logs
-	LogMaxSize     int64  `yaml:"log_max_size"`   // Max file size before rotation
-	ClientTimeout  int    `yaml:"client_timeout"` // In seconds
+	Port            int      `yaml:"port"`
+	MaxConnections  int      `yaml:"max_connections"`
+	LogFormat       string   `yaml:"log_format"`
+	RateLimit       int      `yaml:"rate_limit"`
+	LogPath         string   `yaml:"log_path"`       // Where to store logs
+	LogMaxSize      int64    `yaml:"log_max_size"`   // Max file size before rotation
+	ClientTimeout   int      `yaml:"client_timeout"` // In seconds
+	AllowedPrefixes []string `yaml:"allowed_prefixes"`
 }
 
 func loadConfig() Config {
@@ -145,7 +146,7 @@ func (rl *RateLimiter) Allow(clientID string) bool {
 // Updated Log Processing Component
 func processLog(conn net.Conn, clientID string, message string, rl *RateLimiter, cfg *Config) {
 	// 1. Format validation
-	if !isValidMessage(message) {
+	if !isValidMessage(message, cfg) {
 		fmt.Printf("Invalid message format from %s\n", clientID)
 		return
 	}
@@ -172,10 +173,13 @@ var (
 	logQueue = make(chan string, 1000)
 )
 
-func isValidMessage(msg string) bool {
-	return strings.HasPrefix(msg, "INFO:") ||
-		strings.HasPrefix(msg, "WARN:") ||
-		strings.HasPrefix(msg, "ERROR:")
+func isValidMessage(msg string, cfg *Config) bool {
+	for _, prefix := range cfg.AllowedPrefixes {
+		if strings.HasPrefix(msg, prefix) {
+			return true
+		}
+	}
+	return false
 }
 
 // File I/O Component

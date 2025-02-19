@@ -1,41 +1,35 @@
-[2025-02-19T14:08:00Z] [Client-127.0.0.1:63587]: INFO: Stress test
-[2025-02-19T14:08:01Z] [Client-127.0.0.1:63587]: INFO: Stress test
-[2025-02-19T14:08:01Z] [Client-127.0.0.1:63587]: INFO: Stress test
-[2025-02-19T14:08:01Z] [Client-127.0.0.1:63587]: INFO: Stress test
-[2025-02-19T14:08:01Z] [Client-127.0.0.1:63587]: INFO: Stress test
-[2025-02-19T14:08:01Z] [Client-127.0.0.1:63587]: INFO: Stress test
-[2025-02-19T14:08:01Z] [Client-127.0.0.1:63587]: INFO: Stress test
-[2025-02-19T14:08:01Z] [Client-127.0.0.1:63587]: INFO: Stress test
-[2025-02-19T14:08:01Z] [Client-127.0.0.1:63587]: INFO: Stress test
-[2025-02-19T14:08:01Z] [Client-127.0.0.1:63587]: INFO: Stress test
-[2025-02-19T14:08:01Z] [Client-127.0.0.1:63587]: INFO: Stress test
-[2025-02-19T14:08:02Z] [Client-127.0.0.1:63587]: INFO: Stress test
-[2025-02-19T14:08:02Z] [Client-127.0.0.1:63587]: INFO: Stress test
-[2025-02-19T14:08:02Z] [Client-127.0.0.1:63587]: INFO: Stress test
-[2025-02-19T14:08:02Z] [Client-127.0.0.1:63587]: INFO: Stress test
-[2025-02-19T14:08:02Z] [Client-127.0.0.1:63587]: INFO: Stress test
-[2025-02-19T14:08:02Z] [Client-127.0.0.1:63587]: INFO: Stress test
-[2025-02-19T14:08:02Z] [Client-127.0.0.1:63587]: INFO: Stress test
-[2025-02-19T14:08:02Z] [Client-127.0.0.1:63587]: INFO: Stress test
-[2025-02-19T14:08:02Z] [Client-127.0.0.1:63587]: INFO: Stress test
-[2025-02-19T14:08:02Z] [Client-127.0.0.1:63587]: INFO: Stress test
-[2025-02-19T14:08:03Z] [Client-127.0.0.1:63587]: INFO: Stress test
-[2025-02-19T14:08:03Z] [Client-127.0.0.1:63587]: INFO: Stress test
-[2025-02-19T14:08:03Z] [Client-127.0.0.1:63587]: INFO: Stress test
-[2025-02-19T14:08:03Z] [Client-127.0.0.1:63587]: INFO: Stress test
-[2025-02-19T14:08:03Z] [Client-127.0.0.1:63587]: INFO: Stress test
-[2025-02-19T14:08:03Z] [Client-127.0.0.1:63587]: INFO: Stress test
-[2025-02-19T14:08:03Z] [Client-127.0.0.1:63587]: INFO: Stress test
-[2025-02-19T14:08:03Z] [Client-127.0.0.1:63587]: INFO: Stress test
-[2025-02-19T14:08:03Z] [Client-127.0.0.1:63587]: INFO: Stress test
-[2025-02-19T14:08:03Z] [Client-127.0.0.1:63587]: INFO: Stress test
-[2025-02-19T14:08:04Z] [Client-127.0.0.1:63587]: INFO: Stress test
-[2025-02-19T14:08:04Z] [Client-127.0.0.1:63587]: INFO: Stress test
-[2025-02-19T14:08:04Z] [Client-127.0.0.1:63587]: INFO: Stress test
-[2025-02-19T14:08:04Z] [Client-127.0.0.1:63587]: INFO: Stress test
-[2025-02-19T14:08:04Z] [Client-127.0.0.1:63587]: INFO: Stress test
-[2025-02-19T14:08:04Z] [Client-127.0.0.1:63587]: INFO: Stress test
-[2025-02-19T14:08:04Z] [Client-127.0.0.1:63587]: INFO: Stress test
-[2025-02-19T14:08:04Z] [Client-127.0.0.1:63587]: INFO: Stress test
-[2025-02-19T14:08:04Z] [Client-127.0.0.1:63587]: INFO: Stress test
-[2025-02-19T14:08:04Z] [Client-127.0.0.1:63587]: INFO: Stress test
+[2025-02-19T15:07:27Z] [Client-127.0.0.1:62119]: INFO: Test
+[2025-02-19T15:07:27Z] [Client-127.0.0.1:62120]: WARN: Test
+[2025-02-19T15:07:27Z] [Client-127.0.0.1:62121]: ERROR: Test
+[2025-02-19T15:07:27Z] [Client-127.0.0.1:62122]: DEBUG: Test
+[2025-02-19T15:07:27Z] [Client-127.0.0.1:62123]: AUDIT: Test
+[2025-02-19T15:18:37Z] [Client-127.0.0.1:65410]: WARN: Concurrent message 1
+[2025-02-19T15:18:37Z] [Client-127.0.0.1:65411]: DEBUG: Concurrent message 1
+[2025-02-19T15:18:37Z] [Client-127.0.0.1:65409]: ERROR: Concurrent message 1
+[2025-02-19T15:18:37Z] [Client-127.0.0.1:65410]: ERROR: Concurrent message 2
+[2025-02-19T15:18:37Z] [Client-127.0.0.1:65411]: ERROR: Concurrent message 2
+[2025-02-19T15:18:37Z] [Client-127.0.0.1:65409]: DEBUG: Concurrent message 2
+[2025-02-19T15:18:37Z] [Client-127.0.0.1:65410]: WARN: Concurrent message 3
+[2025-02-19T15:18:37Z] [Client-127.0.0.1:65409]: AUDIT: Concurrent message 3
+[2025-02-19T15:18:37Z] [Client-127.0.0.1:65411]: DEBUG: Concurrent message 3
+[2025-02-19T15:18:37Z] [Client-127.0.0.1:65410]: ERROR: Concurrent message 4
+[2025-02-19T15:18:37Z] [Client-127.0.0.1:65409]: INFO: Concurrent message 4
+[2025-02-19T15:18:37Z] [Client-127.0.0.1:65409]: WARN: Concurrent message 5
+[2025-02-19T15:18:37Z] [Client-127.0.0.1:65411]: AUDIT: Concurrent message 4
+[2025-02-19T15:18:37Z] [Client-127.0.0.1:65410]: DEBUG: Concurrent message 5
+[2025-02-19T15:18:37Z] [Client-127.0.0.1:65411]: ERROR: Concurrent message 5
+[2025-02-19T15:18:37Z] [Client-127.0.0.1:65409]: ERROR: Concurrent message 6
+[2025-02-19T15:18:37Z] [Client-127.0.0.1:65410]: WARN: Concurrent message 6
+[2025-02-19T15:18:37Z] [Client-127.0.0.1:65409]: DEBUG: Concurrent message 7
+[2025-02-19T15:18:37Z] [Client-127.0.0.1:65411]: ERROR: Concurrent message 6
+[2025-02-19T15:18:37Z] [Client-127.0.0.1:65409]: WARN: Concurrent message 8
+[2025-02-19T15:18:37Z] [Client-127.0.0.1:65410]: DEBUG: Concurrent message 7
+[2025-02-19T15:18:37Z] [Client-127.0.0.1:65411]: INFO: Concurrent message 7
+[2025-02-19T15:18:37Z] [Client-127.0.0.1:65409]: AUDIT: Concurrent message 9
+[2025-02-19T15:18:37Z] [Client-127.0.0.1:65410]: INFO: Concurrent message 8
+[2025-02-19T15:18:37Z] [Client-127.0.0.1:65411]: ERROR: Concurrent message 8
+[2025-02-19T15:18:37Z] [Client-127.0.0.1:65409]: DEBUG: Concurrent message 10
+[2025-02-19T15:18:37Z] [Client-127.0.0.1:65410]: AUDIT: Concurrent message 9
+[2025-02-19T15:18:37Z] [Client-127.0.0.1:65411]: ERROR: Concurrent message 9
+[2025-02-19T15:18:37Z] [Client-127.0.0.1:65410]: AUDIT: Concurrent message 10
+[2025-02-19T15:18:37Z] [Client-127.0.0.1:65411]: WARN: Concurrent message 10

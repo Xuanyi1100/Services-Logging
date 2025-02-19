@@ -1,6 +1,8 @@
 import socket
 import argparse
 import time
+import threading
+import random
 
 # Message Interface Component
 def handle_message_input():
@@ -16,9 +18,6 @@ class NetworkClient:
         self.sock.connect((host, port))
     
     def send_message(self, message):
-        valid_prefixes = ["INFO:", "WARN:", "ERROR:"]
-        if not any(message.startswith(p) for p in valid_prefixes):
-            raise ValueError("Invalid message format")
         self.sock.sendall(message.encode())
         try:
             # Add timeout for response
@@ -33,9 +32,26 @@ class NetworkClient:
 # Test Suite Component
 class TestSuite:
     @staticmethod
-    def run_concurrency_test(thread_count):
-        # --threads parameter handling
-        pass
+    def run_concurrency_test(host, port, thread_count):
+        def worker():
+            client = NetworkClient(host, port)
+            # Send 10 valid messages per client
+            for i in range(10):
+                # Randomly select valid message type
+                prefixes = ["INFO:", "WARN:", "ERROR:", "DEBUG:", "AUDIT:"]
+                prefix = random.choice(prefixes)
+                msg = f"{prefix} Concurrent message {i+1}"
+                response = client.send_message(msg)
+                print(f"Response: {response.strip()}")
+        
+        threads = []
+        for _ in range(thread_count):
+            t = threading.Thread(target=worker)
+            threads.append(t)
+            t.start()
+        
+        for t in threads:
+            t.join()
     
     @staticmethod
     def validate_formats():
@@ -59,27 +75,25 @@ class TestSuite:
                 # Add small delay if we're falling behind
                 time.sleep(0.01)
 
-# Reporting Component
-def generate_report():
-    # Test statistics
-    # Latency measurements
-    # Success/failure ratios
-    pass
-
-# Configuration Management
-class ClientConfig:
-    # Server endpoint configuration
-    # Default client ID
-    # Message templates
-    # Configuration placeholder
-    pass  # Required for empty class
+    @staticmethod
+    def run_message_types_tests(host, port):
+        # Test all message types
+        prefixes = ["INFO:", "WARN:", "ERROR:", "DEBUG:", "AUDIT:"]
+        for prefix in prefixes:
+            client = NetworkClient(host, port)
+            response = client.send_message(f"{prefix} Test")
+            assert "ACK" in response, f"Failed for {prefix}"
+        
 
 if __name__ == "__main__":
     # Add command-line arguments
     parser = argparse.ArgumentParser()
     parser.add_argument('--message', help='Direct message to send')
-    parser.add_argument('--test', action='store_true', 
-                       help='Run automated tests')
+    parser.add_argument('--concurrency', type=int,
+                       metavar='THREAD_COUNT',
+                       help='Number of concurrent clients to test')
+    parser.add_argument('--messageTypes', action='store_true',
+                   help='Run log message types tests')
     parser.add_argument('--host', default='localhost',
                    help='Server hostname')
     parser.add_argument('--port', type=int, default=8080,
@@ -94,10 +108,12 @@ if __name__ == "__main__":
 
     if args.message:  # Handle --message first
         print(client.send_message(args.message))
-    elif args.test:   # Handle --test
-        TestSuite.run_concurrency_test(args.threads)
+    elif args.concurrency:   # Handle --test
+        TestSuite.run_concurrency_test(args.host, args.port, args.concurrency)
     elif args.stress: # Handle --stress
         TestSuite.run_stress_test(args.host, args.port, args.stress)
+    elif args.messageTypes: # Handle --messageTypes
+        TestSuite.run_message_types_tests(args.host, args.port)
     else:             # Interactive mode
         while True:
             msg = input("Enter message: ")
