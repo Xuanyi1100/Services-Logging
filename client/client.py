@@ -93,17 +93,17 @@ if __name__ == "__main__":
                    help='Override default client identifier')
     args = parser.parse_args()
 
-    client = NetworkClient(args.host, args.port)  # Use provided host/port
-
-    if args.message:  # Handle --message first
+    if args.message:
+        client = NetworkClient(args.host, args.port)
         print(client.send_message(args.message))
-    elif args.concurrency:   # Handle --test
+    elif args.concurrency:
         TestSuite.run_concurrency_test(args.host, args.port, args.concurrency)
-    elif args.stress: # Handle --stress
+    elif args.stress:
         TestSuite.run_stress_test(args.host, args.port, args.stress)
-    elif args.messageTypes: # Handle --messageTypes
+    elif args.messageTypes:
         TestSuite.run_message_types_tests(args.host, args.port)
-    else:             # Interactive mode
+    else:  # Interactive mode
+        client = NetworkClient(args.host, args.port)
         while True:
             msg = input("Enter message: ")
             print(client.send_message(msg + "\n")) 

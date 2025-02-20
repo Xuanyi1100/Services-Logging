@@ -26,6 +26,12 @@ func startServer(cfg Config, rl *RateLimiter) {
 
 	fmt.Printf("Server listening on port %d\n", cfg.Port)
 
+	// log server listening message
+	logQueue <- fmt.Sprintf(cfg.LogFormat,
+		time.Now().UTC().Format(time.RFC3339),
+		"SYSTEM",
+		fmt.Sprintf("Server started on port %d", cfg.Port),
+	)
 	// 2. Concurrent Connection Handling
 	connChan := make(chan net.Conn)
 	go func() {
@@ -36,6 +42,14 @@ func startServer(cfg Config, rl *RateLimiter) {
 				continue
 			}
 			connChan <- conn
+
+			// log new connection message
+			logQueue <- fmt.Sprintf(cfg.LogFormat,
+				time.Now().UTC().Format(time.RFC3339),
+				"SYSTEM",
+				fmt.Sprintf("New connection from %s", conn.RemoteAddr()),
+			)
+
 		}
 	}()
 
@@ -48,7 +62,13 @@ func startServer(cfg Config, rl *RateLimiter) {
 		case conn := <-connChan:
 			go handleConnection(conn, rl, &cfg)
 		case <-stop:
-			fmt.Println("\nServer shutting down...")
+			// log server shut down message
+			logQueue <- fmt.Sprintf(cfg.LogFormat,
+				time.Now().UTC().Format(time.RFC3339),
+				"SYSTEM",
+				"Server shut down",
+			)
+			fmt.Println("\nServer shut down...")
 			return
 		}
 	}
@@ -160,6 +180,13 @@ func processLog(conn net.Conn, clientID string, message string, rl *RateLimiter,
 	if !rl.Allow(clientID) {
 		conn.Write([]byte("RATE_LIMITED"))
 		fmt.Printf("Rate limit exceeded for %s\n", clientID)
+		// record in log
+		rateLimitedEntry := fmt.Sprintf(cfg.LogFormat,
+			time.Now().UTC().Format(time.RFC3339),
+			clientID,
+			"RATE_LIMITED: "+message,
+		)
+		logQueue <- rateLimitedEntry
 		return
 	}
 
