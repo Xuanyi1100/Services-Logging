@@ -1,22 +1,13 @@
-[2025-02-20T23:05:34Z] [Client-SYSTEM]: Server started on port 8080
-[2025-02-20T23:05:35Z] [Client-SYSTEM]: New connection from 127.0.0.1:60410
-[2025-02-20T23:05:35Z] [Client-127.0.0.1:60410]: INFO: Stress test
-[2025-02-20T23:05:35Z] [Client-127.0.0.1:60410]: INFO: Stress test
-[2025-02-20T23:05:35Z] [Client-127.0.0.1:60410]: INFO: Stress test
-[2025-02-20T23:05:35Z] [Client-127.0.0.1:60410]: INFO: Stress test
-[2025-02-20T23:05:36Z] [Client-127.0.0.1:60410]: INFO: Stress test
-[2025-02-20T23:05:36Z] [Client-127.0.0.1:60410]: INFO: Stress test
-[2025-02-20T23:05:36Z] [Client-127.0.0.1:60410]: INFO: Stress test
-[2025-02-20T23:05:36Z] [Client-127.0.0.1:60410]: INFO: Stress test
-[2025-02-20T23:05:36Z] [Client-127.0.0.1:60410]: INFO: Stress test
-[2025-02-20T23:05:36Z] [Client-127.0.0.1:60410]: INFO: Stress test
-[2025-02-20T23:05:36Z] [Client-127.0.0.1:60410]: RATE_LIMITED: INFO: Stress test
-[2025-02-20T23:05:36Z] [Client-127.0.0.1:60410]: INFO: Stress test
-[2025-02-20T23:05:36Z] [Client-127.0.0.1:60410]: INFO: Stress test
-[2025-02-20T23:05:36Z] [Client-127.0.0.1:60410]: INFO: Stress test
-[2025-02-20T23:05:36Z] [Client-127.0.0.1:60410]: INFO: Stress test
-[2025-02-20T23:05:37Z] [Client-127.0.0.1:60410]: INFO: Stress test
-[2025-02-20T23:05:37Z] [Client-127.0.0.1:60410]: INFO: Stress test
-[2025-02-20T23:05:37Z] [Client-127.0.0.1:60410]: INFO: Stress test
-[2025-02-20T23:05:37Z] [Client-127.0.0.1:60410]: INFO: Stress test
-[2025-02-20T23:05:39Z] [Client-SYSTEM]: Server shut down
+[2025-02-21T14:17:43Z] [SYSTEM] [Client-SYSTEM] Server started on port 8080
+[2025-02-21T14:17:48Z] [SYSTEM] [Client-SYSTEM] New connection from 127.0.0.1:60335
+[2025-02-21T14:17:48Z] [INFO] [Client-127.0.0.1:60335] Message Type Test
+[2025-02-21T14:17:48Z] [SYSTEM] [Client-SYSTEM] New connection from 127.0.0.1:60336
+[2025-02-21T14:17:48Z] [WARN] [Client-127.0.0.1:60336] Message Type Test
+[2025-02-21T14:17:48Z] [SYSTEM] [Client-SYSTEM] New connection from 127.0.0.1:60337
+[2025-02-21T14:17:48Z] [ERROR] [Client-127.0.0.1:60337] Message Type Test
+[2025-02-21T14:17:48Z] [SYSTEM] [Client-SYSTEM] New connection from 127.0.0.1:60338
+[2025-02-21T14:17:48Z] [DEBUG] [Client-127.0.0.1:60338] Message Type Test
+[2025-02-21T14:17:48Z] [SYSTEM] [Client-SYSTEM] New connection from 127.0.0.1:60339
+[2025-02-21T14:17:48Z] [AUDIT] [Client-127.0.0.1:60339] Message Type Test
+[2025-02-21T14:18:10Z] [SYSTEM] [Client-SYSTEM] New connection from 127.0.0.1:60438
+[2025-02-21T14:18:10Z] [INFO] [Client-127.0.0.1:60438] t started

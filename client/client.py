@@ -3,15 +3,24 @@ import argparse
 import time
 import threading
 import random
+import json
 
 # Network Handler Component
 class NetworkClient:
-    def __init__(self, host='localhost', port=8080):
+    def __init__(self, host='localhost', port=8080, client_id=None):
+        self.client_id = client_id or socket.gethostname()
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock.connect((host, port))
     
-    def send_message(self, message):
-        self.sock.sendall(message.encode())
+    def send_message(self, message, level="INFO"):
+        json_msg = {
+            "level": level,
+            "message": message,
+            "timestamp": time.time(),
+            "source": self.client_id
+        }
+        # Serialize and send
+        self.sock.sendall(json.dumps(json_msg).encode())
         try:
             # Add timeout for response
             self.sock.settimeout(1.0)
@@ -30,11 +39,9 @@ class TestSuite:
             client = NetworkClient(host, port)
             # Send 10 valid messages per client
             for i in range(10):
-                # Randomly select valid message type
-                prefixes = ["INFO:", "WARN:", "ERROR:", "DEBUG:", "AUDIT:"]
-                prefix = random.choice(prefixes)
-                msg = f"{prefix} Concurrent message {i+1}"
-                response = client.send_message(msg)
+                
+                msg = f" Concurrent message {i+1}"
+                response = client.send_message(msg,"INFO")
                 print(f"Response: {response.strip()}")
         
         threads = []
@@ -54,7 +61,7 @@ class TestSuite:
         
         while True:
             start = time.time()
-            response = client.send_message("INFO: Stress test")
+            response = client.send_message("Stress test","INFO")
             print(f"Response: {response}")
             
             sleep_time = interval - (time.time() - start)
@@ -67,10 +74,10 @@ class TestSuite:
     @staticmethod
     def run_message_types_tests(host, port):
         # Test all message types
-        prefixes = ["INFO:", "WARN:", "ERROR:", "DEBUG:", "AUDIT:"]
+        prefixes = ["INFO", "WARN", "ERROR", "DEBUG", "AUDIT"]
         for prefix in prefixes:
             client = NetworkClient(host, port)
-            response = client.send_message(f"{prefix} Test")
+            response = client.send_message("Message Type Test",prefix)
             assert "ACK" in response, f"Failed for {prefix}"
         
 
@@ -95,7 +102,7 @@ if __name__ == "__main__":
 
     if args.message:
         client = NetworkClient(args.host, args.port)
-        print(client.send_message(args.message))
+        print(client.send_message(args.message,"INFO"))
     elif args.concurrency:
         TestSuite.run_concurrency_test(args.host, args.port, args.concurrency)
     elif args.stress:
@@ -106,4 +113,4 @@ if __name__ == "__main__":
         client = NetworkClient(args.host, args.port)
         while True:
             msg = input("Enter message: ")
-            print(client.send_message(msg + "\n")) 
+            print(client.send_message(msg + "\n","INFO")) 

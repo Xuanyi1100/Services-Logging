@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
 	"os"
@@ -30,6 +31,7 @@ func startServer(cfg Config, rl *RateLimiter) {
 	logQueue <- fmt.Sprintf(cfg.LogFormat,
 		time.Now().UTC().Format(time.RFC3339),
 		"SYSTEM",
+		"SYSTEM",
 		fmt.Sprintf("Server started on port %d", cfg.Port),
 	)
 	// 2. Concurrent Connection Handling
@@ -46,6 +48,7 @@ func startServer(cfg Config, rl *RateLimiter) {
 			// log new connection message
 			logQueue <- fmt.Sprintf(cfg.LogFormat,
 				time.Now().UTC().Format(time.RFC3339),
+				"SYSTEM",
 				"SYSTEM",
 				fmt.Sprintf("New connection from %s", conn.RemoteAddr()),
 			)
@@ -65,6 +68,7 @@ func startServer(cfg Config, rl *RateLimiter) {
 			// log server shut down message
 			logQueue <- fmt.Sprintf(cfg.LogFormat,
 				time.Now().UTC().Format(time.RFC3339),
+				"SYSTEM",
 				"SYSTEM",
 				"Server shut down",
 			)
@@ -86,25 +90,29 @@ func handleConnection(conn net.Conn, rl *RateLimiter, cfg *Config) {
 		if err != nil {
 			break
 		}
-		msg := string(buf[:n])
+		var msg LogMessage
+		if err := json.Unmarshal(buf[:n], &msg); err != nil {
+			conn.Write([]byte("INVALID_JSON"))
+			continue
+		}
 
 		// Process log with validation and rate limiting
 		processLog(conn, clientID, msg, rl, cfg)
 
-		conn.Write([]byte("ACK: " + msg))
+		conn.Write([]byte("ACK: " + msg.Message))
 	}
 }
 
 // Configuration System
 type Config struct {
-	Port            int      `yaml:"port"`
-	MaxConnections  int      `yaml:"max_connections"`
-	LogFormat       string   `yaml:"log_format"`
-	RateLimit       int      `yaml:"rate_limit"`
-	LogPath         string   `yaml:"log_path"`       // Where to store logs
-	LogMaxSize      int64    `yaml:"log_max_size"`   // Max file size before rotation
-	ClientTimeout   int      `yaml:"client_timeout"` // In seconds
-	AllowedPrefixes []string `yaml:"allowed_prefixes"`
+	Port           int      `yaml:"port"`
+	MaxConnections int      `yaml:"max_connections"`
+	LogFormat      string   `yaml:"log_format"`
+	RateLimit      int      `yaml:"rate_limit"`
+	LogPath        string   `yaml:"log_path"`       // Where to store logs
+	LogMaxSize     int64    `yaml:"log_max_size"`   // Max file size before rotation
+	ClientTimeout  int      `yaml:"client_timeout"` // In seconds
+	AllowedLevels  []string `yaml:"allowed_levels"`
 }
 
 func loadConfig() Config {
@@ -163,18 +171,18 @@ func (rl *RateLimiter) Allow(clientID string) bool {
 }
 
 // Updated Log Processing Component
-func processLog(conn net.Conn, clientID string, message string, rl *RateLimiter, cfg *Config) {
+func processLog(conn net.Conn, clientID string, msg LogMessage, rl *RateLimiter, cfg *Config) {
 	// 1. Format validation
-	if !isValidMessage(message, cfg) {
+	if !isValidMessage(msg, cfg) {
 		fmt.Printf("Invalid message format from %s\n", clientID)
 		return
 	}
 
 	// 2. Timestamp standardization
-	timestamp := time.Now().UTC().Format(time.RFC3339)
+	timestamp := time.Unix(int64(msg.Timestamp), 0).UTC().Format(time.RFC3339)
 
 	// 3. log using cfg format
-	logEntry := fmt.Sprintf(cfg.LogFormat, timestamp, clientID, message)
+	logEntry := fmt.Sprintf(cfg.LogFormat, timestamp, msg.Level, clientID, msg.Message)
 
 	// 4. Rate limiting (token bucket per client)
 	if !rl.Allow(clientID) {
@@ -183,8 +191,9 @@ func processLog(conn net.Conn, clientID string, message string, rl *RateLimiter,
 		// record in log
 		rateLimitedEntry := fmt.Sprintf(cfg.LogFormat,
 			time.Now().UTC().Format(time.RFC3339),
+			"SYSTEM",
 			clientID,
-			"RATE_LIMITED: "+message,
+			"RATE_LIMITED: "+msg.Message,
 		)
 		logQueue <- rateLimitedEntry
 		return
@@ -199,9 +208,9 @@ var (
 	logQueue = make(chan string, 1000)
 )
 
-func isValidMessage(msg string, cfg *Config) bool {
-	for _, prefix := range cfg.AllowedPrefixes {
-		if strings.HasPrefix(msg, prefix) {
+func isValidMessage(msg LogMessage, cfg *Config) bool {
+	for _, level := range cfg.AllowedLevels {
+		if msg.Level == level {
 			return true
 		}
 	}
@@ -276,6 +285,13 @@ func (lw *LogWriter) rotate() error {
 	}
 	lw.currentFile = newFile
 	return nil
+}
+
+type LogMessage struct {
+	Level     string  `json:"level"`
+	Message   string  `json:"message"`
+	Timestamp float64 `json:"timestamp"`
+	Source    string  `json:"source"`
 }
 
 func main() {

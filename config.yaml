@@ -1,14 +1,14 @@
 port: 8080
 max_connections: 100
-log_format: "[%s] [Client-%s]: %s"
+log_format: "[%s] [%s] [Client-%s] %s"
 udp_port: 8081
 rate_limit: 10
 log_path: "./logs/app.log"
 log_max_size: 1048576 # 1MB
 client_timeout: 30
-allowed_prefixes:
-  - "INFO:"
-  - "WARN:" 
-  - "ERROR:"
-  - "DEBUG:"
-  - "AUDIT:"
+allowed_levels:
+  - "INFO"
+  - "WARN"
+  - "ERROR"
+  - "DEBUG"
+  - "AUDIT"
