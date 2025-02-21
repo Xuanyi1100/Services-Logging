@@ -105,14 +105,15 @@ func handleConnection(conn net.Conn, rl *RateLimiter, cfg *Config) {
 
 // Configuration System
 type Config struct {
-	Port           int      `yaml:"port"`
-	MaxConnections int      `yaml:"max_connections"`
-	LogFormat      string   `yaml:"log_format"`
-	RateLimit      int      `yaml:"rate_limit"`
-	LogPath        string   `yaml:"log_path"`       // Where to store logs
-	LogMaxSize     int64    `yaml:"log_max_size"`   // Max file size before rotation
-	ClientTimeout  int      `yaml:"client_timeout"` // In seconds
-	AllowedLevels  []string `yaml:"allowed_levels"`
+	Port                   int           `yaml:"port"`
+	MaxConnections         int           `yaml:"max_connections"`
+	LogFormat              string        `yaml:"log_format"`
+	RateLimit              int           `yaml:"rate_limit"`
+	RateLimitedLogInterval time.Duration `yaml:"rate_limited_log_interval"`
+	LogPath                string        `yaml:"log_path"`       // Where to store logs
+	LogMaxSize             int64         `yaml:"log_max_size"`   // Max file size before rotation
+	ClientTimeout          int           `yaml:"client_timeout"` // In seconds
+	AllowedLevels          []string      `yaml:"allowed_levels"`
 }
 
 func loadConfig() Config {
@@ -170,7 +171,7 @@ func (rl *RateLimiter) Allow(clientID string) bool {
 	return true
 }
 
-// Updated Log Processing Component
+// Log Processing Component
 func processLog(conn net.Conn, clientID string, msg LogMessage, rl *RateLimiter, cfg *Config) {
 	// 1. Format validation
 	if !isValidMessage(msg, cfg) {
@@ -188,14 +189,21 @@ func processLog(conn net.Conn, clientID string, msg LogMessage, rl *RateLimiter,
 	if !rl.Allow(clientID) {
 		conn.Write([]byte("RATE_LIMITED"))
 		fmt.Printf("Rate limit exceeded for %s\n", clientID)
-		// record in log
-		rateLimitedEntry := fmt.Sprintf(cfg.LogFormat,
-			time.Now().UTC().Format(time.RFC3339),
-			"SYSTEM",
-			clientID,
-			"RATE_LIMITED: "+msg.Message,
-		)
-		logQueue <- rateLimitedEntry
+
+		// RATE_LIMITED entry needs to be limited as well
+		now := time.Now()
+		lastLogTime, exists := rateLimitedLogTimes[clientID]
+		if !exists || now.Sub(lastLogTime) > cfg.RateLimitedLogInterval {
+			// Log RATE_LIMITED and update last log time
+			rateLimitedEntry := fmt.Sprintf(cfg.LogFormat,
+				time.Now().UTC().Format(time.RFC3339),
+				"SYSTEM",
+				clientID,
+				"RATE_LIMITED: "+msg.Message,
+			)
+			logQueue <- rateLimitedEntry
+			rateLimitedLogTimes[clientID] = now
+		}
 		return
 	}
 
@@ -205,7 +213,8 @@ func processLog(conn net.Conn, clientID string, msg LogMessage, rl *RateLimiter,
 
 // Helper functions
 var (
-	logQueue = make(chan string, 1000)
+	logQueue            = make(chan string, 1000)
+	rateLimitedLogTimes = make(map[string]time.Time)
 )
 
 func isValidMessage(msg LogMessage, cfg *Config) bool {
@@ -313,6 +322,7 @@ func main() {
 	}()
 
 	// Implement dynamic config reload
+	// not working on windows
 	sighup := make(chan os.Signal, 1)
 	signal.Notify(sighup, syscall.SIGHUP)
 	go func() {
