@@ -4,7 +4,7 @@ max_connections: 100
 log_format: "[%s] [%s] [%s] %s" # timestamp, log_level, host/client_id, message
 rate_limit: 5
 rate_limited_log_interval: 1s
-log_path: "../logs/app.log"
+log_path: "./logs/app.log"
 log_max_size: 1048576           # 1MB
 client_timeout: 30
 log_levels:

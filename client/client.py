@@ -7,6 +7,10 @@ import json
 
 MESSAGE_COUNT = 10      # For concurrency test. The number of messages to send in each thread
 RESPONSE_TIMEOUT = 1.0  # Timeout for response in seconds
+INVALID_SOURCE = "a" * 257
+LONG_MESSAGE = "a" * 1025
+FUTURE_TIME_OFFSET = 3600*24
+PAST_TIME_OFFSET = 3600*24*365
 # Network Handler Component
 class NetworkClient:
     def __init__(self, host='localhost', port=8080, client_id=None):
@@ -14,12 +18,14 @@ class NetworkClient:
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock.connect((host, port))
     
-    def send_message(self, message, level="INFO"):
+    def send_message(self, message, level="INFO", timestamp=time.time(), source=None):
+        if(source is None):
+            source = self.client_id
         json_msg = {
             "level": level,
             "message": message,
-            "timestamp": time.time(),
-            "source": self.client_id
+            "timestamp": timestamp,
+            "source": source
         }
         # Serialize and send
         self.sock.sendall(json.dumps(json_msg).encode())
@@ -82,6 +88,34 @@ class TestSuite:
             response = client.send_message("Message Type Test",prefix)
             assert "ACK" in response, f"Failed for {prefix}"
         
+    @staticmethod
+    def run_invalid_message_test(host, port):
+        client = NetworkClient(host, port)
+        # Send invalid message
+        msg = f"A invalid long message {LONG_MESSAGE}"
+        print(f"Sending {msg}")
+        response = client.send_message(msg)
+        print(f"Response: {response}")
+
+        # Send message with future timestamp
+        future_timestamp = int(time.time()) + FUTURE_TIME_OFFSET
+        msg = f"Future timestamp {future_timestamp}"
+        print(f"Sending {msg}")
+        response = client.send_message(msg,"INFO", future_timestamp)
+        print(f"Response: {response}")
+
+        # Send message with past timestamp
+        past_timestamp = int(time.time()) - PAST_TIME_OFFSET
+        msg = f"Past timestamp {past_timestamp}"
+        print(f"Sending {msg}")
+        response = client.send_message(msg,"INFO", past_timestamp)
+        print(f"Response: {response}")
+
+        # Send message with invalid source
+        msg = f"Invalid source {INVALID_SOURCE}"
+        print(f"Sending {msg}")
+        response = client.send_message(msg,"INFO", source=INVALID_SOURCE)
+        print(f"Response: {response}")
 
 if __name__ == "__main__":
     # Add command-line arguments
@@ -98,8 +132,8 @@ if __name__ == "__main__":
                    help='Server port')
     parser.add_argument('--stress', type=int,
                    help='Messages per second for stress test')
-    # parser.add_argument('--client-id', 
-    #               help='Override default client identifier')
+    parser.add_argument('--invalidMessage', action='store_true',
+                   help='Send invalid message')
     args = parser.parse_args()
 
     if args.message:
@@ -111,6 +145,8 @@ if __name__ == "__main__":
         TestSuite.run_stress_test(args.host, args.port, args.stress)
     elif args.messageTypes:
         TestSuite.run_message_types_tests(args.host, args.port)
+    elif args.invalidMessage:
+        TestSuite.run_invalid_message_test(args.host, args.port)
     else:  # Interactive mode
         client = NetworkClient(args.host, args.port)
         while True:

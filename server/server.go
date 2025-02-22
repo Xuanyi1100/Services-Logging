@@ -172,23 +172,12 @@ func handleConnection(conn net.Conn, rl *RateLimiter, cfg *Config) {
 			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
 				fmt.Printf("%s Disconnected after timeout: %v\n",
 					conn.RemoteAddr().String(), err)
-
 				// log client disconnect message
 				logQueue <- fmt.Sprintf(cfg.LogFormat,
 					time.Now().Format(time.RFC3339),
 					"INFO",
 					cfg.SystemName,
 					fmt.Sprintf("%s Disconnected after timeout: %v",
-						conn.RemoteAddr().String(), err),
-				)
-			} else {
-				fmt.Printf("%s Read error: %v", clientID, err)
-				// log client read error message
-				logQueue <- fmt.Sprintf(cfg.LogFormat,
-					time.Now().Format(time.RFC3339),
-					"ERROR",
-					cfg.SystemName,
-					fmt.Sprintf("%s Read error: %v",
 						conn.RemoteAddr().String(), err),
 				)
 			}
@@ -203,12 +192,12 @@ func handleConnection(conn net.Conn, rl *RateLimiter, cfg *Config) {
 		// Process log with validation and rate limiting
 		processLog(conn, clientID, msg, rl, cfg)
 
-		conn.Write([]byte("ACK: " + msg.Message))
+		// conn.Write([]byte("ACK: " + msg.Message))
 	}
 }
 
 func loadConfig() Config {
-	data, err := os.ReadFile("../config.yaml")
+	data, err := os.ReadFile("./config.yaml")
 	if err != nil {
 		panic(fmt.Errorf("config error: %v", err))
 	}
@@ -301,6 +290,7 @@ func processLog(conn net.Conn, clientID string, msg LogMessage,
 
 	// 5. Message queuing (channel buffer)
 	logQueue <- logEntry
+	conn.Write([]byte("ACK: " + msg.Message))
 }
 
 // Helper functions
@@ -343,7 +333,7 @@ func isValidMessage(msg LogMessage, cfg *Config) bool {
 	}
 
 	// Check if source is too long
-	if len(msg.Source) > cfg.LogValidation["source_max_length"] {
+	if len(msg.Source) > cfg.LogValidation["max_source_length"] {
 		return false
 	}
 
@@ -354,7 +344,7 @@ func isValidMessage(msg LogMessage, cfg *Config) bool {
 		}
 	}
 	// Check if message is too long
-	if len(msg.Message) > cfg.LogValidation["message_max_length"] {
+	if len(msg.Message) > cfg.LogValidation["max_message_length"] {
 		return false
 	}
 	for _, r := range msg.Message {
