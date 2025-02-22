@@ -11,6 +11,7 @@ import (
 	"sync"
 	"syscall"
 	"time"
+	"unicode"
 
 	"gopkg.in/yaml.v3"
 )
@@ -33,6 +34,7 @@ type Config struct {
 	ClientTimeout          int            `yaml:"client_timeout"` // In seconds
 	LogLevels              map[string]int `yaml:"log_levels"`     // log level and its priority
 	MinLogLevel            int            `yaml:"min_log_level"`  // Minimum log level to log
+	LogValidation          map[string]int `yaml:"log_validation"` // Validation rules
 }
 
 // File I/O Component
@@ -258,6 +260,11 @@ func processLog(conn net.Conn, clientID string, msg LogMessage,
 	// 1. Format validation
 	if !isValidMessage(msg, cfg) {
 		fmt.Printf("Invalid message format from %s\n", clientID)
+		logQueue <- fmt.Sprintf(cfg.LogFormat,
+			time.Now().Format(time.RFC3339),
+			"WARN",
+			cfg.SystemName, fmt.Sprintf("Invalid message format from %s", clientID))
+		conn.Write([]byte("INVALID_MESSAGE_FORMAT"))
 		return
 	}
 
@@ -299,8 +306,31 @@ func processLog(conn net.Conn, clientID string, msg LogMessage,
 // Helper functions
 
 // Message validation based on config
-// TODO: Add more validation rules
 func isValidMessage(msg LogMessage, cfg *Config) bool {
+	// Check if required fields are empty
+	if msg.Level == "" {
+		return false
+	}
+	if msg.Message == "" {
+		return false
+	}
+	if msg.Source == "" {
+		return false
+	}
+	if msg.Timestamp <= 0 {
+		return false
+	}
+
+	// Check if timestamp is valid
+	now := time.Now().Unix()
+	maxFutureOffset := int64(cfg.LogValidation["future_offset"]) // allow up to future_offset in the future
+	if msg.Timestamp > float64(now+maxFutureOffset) {
+		return false
+	}
+	maxPastOffset := int64(cfg.LogValidation["past_offset"]) // allow up to past_offset in the past
+	if msg.Timestamp < float64(now-maxPastOffset) {
+		return false
+	}
 
 	// Check if log level is valid
 	levelPriority, exists := cfg.LogLevels[msg.Level]
@@ -308,7 +338,32 @@ func isValidMessage(msg LogMessage, cfg *Config) bool {
 		return false
 	}
 	// check if log level is above min log level
-	return levelPriority >= cfg.MinLogLevel
+	if levelPriority < cfg.MinLogLevel {
+		return false
+	}
+
+	// Check if source is too long
+	if len(msg.Source) > cfg.LogValidation["source_max_length"] {
+		return false
+	}
+
+	for _, r := range msg.Source {
+		// Check for control characters except tab
+		if unicode.IsControl(r) && r != '\t' {
+			return false
+		}
+	}
+	// Check if message is too long
+	if len(msg.Message) > cfg.LogValidation["message_max_length"] {
+		return false
+	}
+	for _, r := range msg.Message {
+		// Check for control characters except newline and tab
+		if unicode.IsControl(r) && r != '\n' && r != '\t' {
+			return false
+		}
+	}
+	return true
 }
 
 func NewLogWriter(path string, maxSize int64) *LogWriter {

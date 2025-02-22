@@ -2,7 +2,6 @@ system_name: "LOG_SERVER"       # Name of the system
 port: 8080
 max_connections: 100
 log_format: "[%s] [%s] [%s] %s" # timestamp, log_level, host/client_id, message
-udp_port: 8081
 rate_limit: 5
 rate_limited_log_interval: 1s
 log_path: "../logs/app.log"
@@ -16,3 +15,8 @@ log_levels:
   DEBUG: 1
   AUDIT: 0
 min_log_level: 0
+log_validation:
+  max_message_length: 1024      # Maximum message length
+  future_offset: 3600           # Allowed future time offset (seconds)
+  past_offset: 86400             # Allowed past time offset (seconds)
+  max_source_length: 256        # Maximum source length
