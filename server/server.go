@@ -15,6 +15,11 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+const (
+	// Default buffer size for reading messages
+	READ_BUFFER_SIZE = 1024
+)
+
 // Configuration System
 type Config struct {
 	SystemName             string         `yaml:"system_name"` // Name of the system
@@ -54,8 +59,9 @@ type RateLimiter struct {
 }
 
 var (
-	logQueue            = make(chan string, 1000)
-	rateLimitedLogTimes = make(map[string]time.Time)
+	logQueue              = make(chan string, 1000)
+	rateLimitedLogTimesMu sync.Mutex
+	rateLimitedLogTimes   = make(map[string]time.Time)
 )
 
 // Network Listener Component
@@ -72,7 +78,7 @@ func startServer(cfg Config, rl *RateLimiter) {
 
 	// log server listening message
 	logQueue <- fmt.Sprintf(cfg.LogFormat,
-		time.Now().UTC().Format(time.RFC3339),
+		time.Now().Format(time.RFC3339),
 		"INFO",
 		cfg.SystemName,
 		fmt.Sprintf("Server started on port %d", cfg.Port),
@@ -90,7 +96,7 @@ func startServer(cfg Config, rl *RateLimiter) {
 
 			// log new connection message
 			logQueue <- fmt.Sprintf(cfg.LogFormat,
-				time.Now().UTC().Format(time.RFC3339),
+				time.Now().Format(time.RFC3339),
 				"INFO",
 				cfg.SystemName,
 				fmt.Sprintf("New connection from %s", conn.RemoteAddr()),
@@ -110,7 +116,7 @@ func startServer(cfg Config, rl *RateLimiter) {
 		case <-stop:
 			// log server shut down message
 			logQueue <- fmt.Sprintf(cfg.LogFormat,
-				time.Now().UTC().Format(time.RFC3339),
+				time.Now().Format(time.RFC3339),
 				"INFO",
 				cfg.SystemName,
 				"Server shut down",
@@ -124,13 +130,66 @@ func startServer(cfg Config, rl *RateLimiter) {
 func handleConnection(conn net.Conn, rl *RateLimiter, cfg *Config) {
 	defer conn.Close()
 
+	// Set the waiting time before the client sends its first data
+	if err := conn.SetDeadline(time.Now().Add(
+		time.Duration(cfg.ClientTimeout) * time.Second)); err != nil {
+		fmt.Printf("%s Initial timeout setting failed: %v\n",
+			conn.RemoteAddr().String(), err)
+		logQueue <- fmt.Sprintf(cfg.LogFormat,
+			time.Now().Format(time.RFC3339),
+			"ERROR",
+			cfg.SystemName,
+			fmt.Sprintf("%s Initial timeout setting failed: %v",
+				conn.RemoteAddr().String(), err),
+		)
+		return
+	}
 	// Get client ID (simple example)
 	clientID := conn.RemoteAddr().String()
 
-	buf := make([]byte, 1024)
+	buf := make([]byte, READ_BUFFER_SIZE)
 	for {
+		// Set the waiting time before the client sends its first data
+		if err := conn.SetDeadline(time.Now().Add(
+			time.Duration(cfg.ClientTimeout) * time.Second)); err != nil {
+			fmt.Printf("%s Reset timeout failed: %v\n",
+				conn.RemoteAddr().String(), err)
+
+			// log client reset timeout message
+			logQueue <- fmt.Sprintf(cfg.LogFormat,
+				time.Now().Format(time.RFC3339),
+				"ERROR",
+				cfg.SystemName,
+				fmt.Sprintf("%s Reset timeout failed: %v",
+					conn.RemoteAddr().String(), err),
+			)
+			break
+		}
 		n, err := conn.Read(buf)
 		if err != nil {
+			if netErr, ok := err.(net.Error); ok && netErr.Timeout() {
+				fmt.Printf("%s Disconnected after timeout: %v\n",
+					conn.RemoteAddr().String(), err)
+
+				// log client disconnect message
+				logQueue <- fmt.Sprintf(cfg.LogFormat,
+					time.Now().Format(time.RFC3339),
+					"INFO",
+					cfg.SystemName,
+					fmt.Sprintf("%s Disconnected after timeout: %v",
+						conn.RemoteAddr().String(), err),
+				)
+			} else {
+				fmt.Printf("%s Read error: %v", clientID, err)
+				// log client read error message
+				logQueue <- fmt.Sprintf(cfg.LogFormat,
+					time.Now().Format(time.RFC3339),
+					"ERROR",
+					cfg.SystemName,
+					fmt.Sprintf("%s Read error: %v",
+						conn.RemoteAddr().String(), err),
+				)
+			}
 			break
 		}
 		var msg LogMessage
@@ -194,7 +253,8 @@ func (rl *RateLimiter) Allow(clientID string) bool {
 }
 
 // Log Processing Component
-func processLog(conn net.Conn, clientID string, msg LogMessage, rl *RateLimiter, cfg *Config) {
+func processLog(conn net.Conn, clientID string, msg LogMessage,
+	rl *RateLimiter, cfg *Config) {
 	// 1. Format validation
 	if !isValidMessage(msg, cfg) {
 		fmt.Printf("Invalid message format from %s\n", clientID)
@@ -202,10 +262,11 @@ func processLog(conn net.Conn, clientID string, msg LogMessage, rl *RateLimiter,
 	}
 
 	// 2. Timestamp standardization
-	timestamp := time.Unix(int64(msg.Timestamp), 0).UTC().Format(time.RFC3339)
+	timestamp := time.Unix(int64(msg.Timestamp), 0).Format(time.RFC3339)
 
 	// 3. log using cfg format
-	logEntry := fmt.Sprintf(cfg.LogFormat, timestamp, msg.Level, clientID, msg.Message)
+	logEntry := fmt.Sprintf(cfg.LogFormat,
+		timestamp, msg.Level, clientID, msg.Message)
 
 	// 4. Rate limiting (token bucket per client)
 	if !rl.Allow(clientID) {
@@ -218,12 +279,14 @@ func processLog(conn net.Conn, clientID string, msg LogMessage, rl *RateLimiter,
 		if !exists || now.Sub(lastLogTime) > cfg.RateLimitedLogInterval {
 			// Log RATE_LIMITED and update last log time
 			rateLimitedEntry := fmt.Sprintf(cfg.LogFormat,
-				time.Now().UTC().Format(time.RFC3339),
+				time.Now().Format(time.RFC3339),
 				"WARN",
 				cfg.SystemName,
 				"RATE_LIMITED: "+clientID,
 			)
 			logQueue <- rateLimitedEntry
+			rateLimitedLogTimesMu.Lock()
+			defer rateLimitedLogTimesMu.Unlock()
 			rateLimitedLogTimes[clientID] = now
 		}
 		return
@@ -255,27 +318,27 @@ func NewLogWriter(path string, maxSize int64) *LogWriter {
 	}
 }
 
-func (lw *LogWriter) Write(entry string) error {
+func (lw *LogWriter) Write(entry string, cfg *Config) error {
 	lw.mu.Lock()
 	defer lw.mu.Unlock()
 
 	// Create file if needed
 	if lw.currentFile == nil {
-		if err := lw.rotate(); err != nil {
+		if err := lw.rotate(cfg); err != nil {
 			return err
 		}
 	}
 
 	// Check size for rotation
 	if info, _ := lw.currentFile.Stat(); info.Size() > lw.maxSize {
-		lw.rotate()
+		lw.rotate(cfg)
 	}
 
 	_, err := fmt.Fprintln(lw.currentFile, entry)
 	return err
 }
 
-func (lw *LogWriter) rotate() error {
+func (lw *LogWriter) rotate(cfg *Config) error {
 	// Close current file if open
 	if lw.currentFile != nil {
 		lw.currentFile.Close()
@@ -290,9 +353,17 @@ func (lw *LogWriter) rotate() error {
 
 		for {
 			// New format: base + number + extension (app0.log, app1.log)
-			backupPath := fmt.Sprintf("%s%d%s", base, backupNum, ext)
+			backupPath := fmt.Sprintf("%s_%s%s",
+				base, time.Now().Format(time.RFC3339), ext)
 			if _, err := os.Stat(backupPath); os.IsNotExist(err) {
 				if err := os.Rename(lw.filePath, backupPath); err != nil {
+
+					logQueue <- fmt.Sprintf(cfg.LogFormat,
+						time.Now().Format(time.RFC3339),
+						"ERROR",
+						cfg.SystemName,
+						fmt.Sprintf("Failed to rotate log file: %v", err),
+					)
 					return fmt.Errorf("failed to rotate log file: %v", err)
 				}
 				break
@@ -302,8 +373,16 @@ func (lw *LogWriter) rotate() error {
 	}
 
 	// Create new file
-	newFile, err := os.OpenFile(lw.filePath, os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
+	newFile, err := os.OpenFile(lw.filePath,
+		os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644)
 	if err != nil {
+		// Handle error
+		logQueue <- fmt.Sprintf(cfg.LogFormat,
+			time.Now().Format(time.RFC3339),
+			"ERROR",
+			cfg.SystemName,
+			fmt.Sprintf("Failed to create new log file: %v", err),
+		)
 		return fmt.Errorf("failed to create new log file: %v", err)
 	}
 	lw.currentFile = newFile
@@ -322,14 +401,14 @@ func main() {
 	// Start log consumer
 	go func() {
 		for entry := range logQueue {
-			if err := writer.Write(entry); err != nil {
+			if err := writer.Write(entry, &cfg); err != nil {
 				fmt.Printf("Failed to write log: %v\n", err)
 			}
 		}
 	}()
 
 	// Implement dynamic config reload
-	// not working on windows
+	// not working on Windows
 	sighup := make(chan os.Signal, 1)
 	signal.Notify(sighup, syscall.SIGHUP)
 	go func() {
