@@ -15,6 +15,49 @@ import (
 	"gopkg.in/yaml.v3"
 )
 
+// Configuration System
+type Config struct {
+	SystemName             string         `yaml:"system_name"` // Name of the system
+	Port                   int            `yaml:"port"`
+	MaxConnections         int            `yaml:"max_connections"`
+	LogFormat              string         `yaml:"log_format"`
+	RateLimit              int            `yaml:"rate_limit"`
+	RateLimitedLogInterval time.Duration  `yaml:"rate_limited_log_interval"`
+	LogPath                string         `yaml:"log_path"`       // Where to store logs
+	LogMaxSize             int64          `yaml:"log_max_size"`   // Max file size before rotation
+	ClientTimeout          int            `yaml:"client_timeout"` // In seconds
+	LogLevels              map[string]int `yaml:"log_levels"`     // log level and its priority
+	MinLogLevel            int            `yaml:"min_log_level"`  // Minimum log level to log
+}
+
+// File I/O Component
+type LogWriter struct {
+	currentFile *os.File
+	filePath    string
+	maxSize     int64
+	mu          sync.Mutex
+}
+
+type LogMessage struct {
+	Level     string  `json:"level"`
+	Message   string  `json:"message"`
+	Timestamp float64 `json:"timestamp"`
+	Source    string  `json:"source"`
+}
+
+// Rate limiter structure, token bucket per client
+type RateLimiter struct {
+	tokens    map[string]int
+	lastReset time.Time
+	mu        sync.Mutex
+	cfg       *Config
+}
+
+var (
+	logQueue            = make(chan string, 1000)
+	rateLimitedLogTimes = make(map[string]time.Time)
+)
+
 // Network Listener Component
 func startServer(cfg Config, rl *RateLimiter) {
 	// 1. TCP Port Binding
@@ -30,8 +73,8 @@ func startServer(cfg Config, rl *RateLimiter) {
 	// log server listening message
 	logQueue <- fmt.Sprintf(cfg.LogFormat,
 		time.Now().UTC().Format(time.RFC3339),
-		"SYSTEM",
-		"SYSTEM",
+		"INFO",
+		cfg.SystemName,
 		fmt.Sprintf("Server started on port %d", cfg.Port),
 	)
 	// 2. Concurrent Connection Handling
@@ -48,8 +91,8 @@ func startServer(cfg Config, rl *RateLimiter) {
 			// log new connection message
 			logQueue <- fmt.Sprintf(cfg.LogFormat,
 				time.Now().UTC().Format(time.RFC3339),
-				"SYSTEM",
-				"SYSTEM",
+				"INFO",
+				cfg.SystemName,
 				fmt.Sprintf("New connection from %s", conn.RemoteAddr()),
 			)
 
@@ -68,8 +111,8 @@ func startServer(cfg Config, rl *RateLimiter) {
 			// log server shut down message
 			logQueue <- fmt.Sprintf(cfg.LogFormat,
 				time.Now().UTC().Format(time.RFC3339),
-				"SYSTEM",
-				"SYSTEM",
+				"INFO",
+				cfg.SystemName,
 				"Server shut down",
 			)
 			fmt.Println("\nServer shut down...")
@@ -103,21 +146,8 @@ func handleConnection(conn net.Conn, rl *RateLimiter, cfg *Config) {
 	}
 }
 
-// Configuration System
-type Config struct {
-	Port                   int           `yaml:"port"`
-	MaxConnections         int           `yaml:"max_connections"`
-	LogFormat              string        `yaml:"log_format"`
-	RateLimit              int           `yaml:"rate_limit"`
-	RateLimitedLogInterval time.Duration `yaml:"rate_limited_log_interval"`
-	LogPath                string        `yaml:"log_path"`       // Where to store logs
-	LogMaxSize             int64         `yaml:"log_max_size"`   // Max file size before rotation
-	ClientTimeout          int           `yaml:"client_timeout"` // In seconds
-	AllowedLevels          []string      `yaml:"allowed_levels"`
-}
-
 func loadConfig() Config {
-	data, err := os.ReadFile("config.yaml")
+	data, err := os.ReadFile("../config.yaml")
 	if err != nil {
 		panic(fmt.Errorf("config error: %v", err))
 	}
@@ -127,14 +157,6 @@ func loadConfig() Config {
 		panic(fmt.Errorf("invalid config: %v", err))
 	}
 	return cfg
-}
-
-// Rate limiter structure, token bucket per client
-type RateLimiter struct {
-	tokens    map[string]int
-	lastReset time.Time
-	mu        sync.Mutex
-	cfg       *Config
 }
 
 func NewRateLimiter(cfg *Config) *RateLimiter {
@@ -197,9 +219,9 @@ func processLog(conn net.Conn, clientID string, msg LogMessage, rl *RateLimiter,
 			// Log RATE_LIMITED and update last log time
 			rateLimitedEntry := fmt.Sprintf(cfg.LogFormat,
 				time.Now().UTC().Format(time.RFC3339),
-				"SYSTEM",
-				clientID,
-				"RATE_LIMITED: "+msg.Message,
+				"WARN",
+				cfg.SystemName,
+				"RATE_LIMITED: "+clientID,
 			)
 			logQueue <- rateLimitedEntry
 			rateLimitedLogTimes[clientID] = now
@@ -212,26 +234,18 @@ func processLog(conn net.Conn, clientID string, msg LogMessage, rl *RateLimiter,
 }
 
 // Helper functions
-var (
-	logQueue            = make(chan string, 1000)
-	rateLimitedLogTimes = make(map[string]time.Time)
-)
 
+// Message validation based on config
+// TODO: Add more validation rules
 func isValidMessage(msg LogMessage, cfg *Config) bool {
-	for _, level := range cfg.AllowedLevels {
-		if msg.Level == level {
-			return true
-		}
-	}
-	return false
-}
 
-// File I/O Component
-type LogWriter struct {
-	currentFile *os.File
-	filePath    string
-	maxSize     int64
-	mu          sync.Mutex
+	// Check if log level is valid
+	levelPriority, exists := cfg.LogLevels[msg.Level]
+	if !exists {
+		return false
+	}
+	// check if log level is above min log level
+	return levelPriority >= cfg.MinLogLevel
 }
 
 func NewLogWriter(path string, maxSize int64) *LogWriter {
@@ -294,13 +308,6 @@ func (lw *LogWriter) rotate() error {
 	}
 	lw.currentFile = newFile
 	return nil
-}
-
-type LogMessage struct {
-	Level     string  `json:"level"`
-	Message   string  `json:"message"`
-	Timestamp float64 `json:"timestamp"`
-	Source    string  `json:"source"`
 }
 
 func main() {

@@ -5,6 +5,8 @@ import threading
 import random
 import json
 
+MESSAGE_COUNT = 10      # For concurrency test. The number of messages to send in each thread
+RESPONSE_TIMEOUT = 1.0  # Timeout for response in seconds
 # Network Handler Component
 class NetworkClient:
     def __init__(self, host='localhost', port=8080, client_id=None):
@@ -23,11 +25,11 @@ class NetworkClient:
         self.sock.sendall(json.dumps(json_msg).encode())
         try:
             # Add timeout for response
-            self.sock.settimeout(1.0)
+            self.sock.settimeout(RESPONSE_TIMEOUT)
             response = self.sock.recv(1024)
             return response.decode()
         except socket.timeout:
-            return "No response received"
+            return f"No response received within {RESPONSE_TIMEOUT} seconds"
         except Exception as e:
             return f"Error: {str(e)}"
 
@@ -38,7 +40,7 @@ class TestSuite:
         def worker():
             client = NetworkClient(host, port)
             # Send 10 valid messages per client
-            for i in range(10):
+            for i in range(MESSAGE_COUNT):
                 
                 msg = f" Concurrent message {i+1}"
                 response = client.send_message(msg,"INFO")
@@ -58,12 +60,12 @@ class TestSuite:
     def run_stress_test(host, port, rate):
         client = NetworkClient(host, port)
         interval = 1.0 / rate
-        
+        count = 0
         while True:
             start = time.time()
-            response = client.send_message("Stress test","INFO")
+            response = client.send_message(f"Stress test {count}","INFO")
             print(f"Response: {response}")
-            
+            count += 1
             sleep_time = interval - (time.time() - start)
             if sleep_time > 0:
                 time.sleep(sleep_time)
@@ -96,8 +98,8 @@ if __name__ == "__main__":
                    help='Server port')
     parser.add_argument('--stress', type=int,
                    help='Messages per second for stress test')
-    parser.add_argument('--client-id', 
-                   help='Override default client identifier')
+    # parser.add_argument('--client-id', 
+    #               help='Override default client identifier')
     args = parser.parse_args()
 
     if args.message:

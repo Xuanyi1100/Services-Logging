@@ -1,15 +1,18 @@
+system_name: "LOG_SERVER"       # Name of the system
 port: 8080
 max_connections: 100
-log_format: "[%s] [%s] [Client-%s] %s" # timestamp, level, client_id, message
+log_format: "[%s] [%s] [%s] %s" # timestamp, log_level, host/client_id, message
 udp_port: 8081
 rate_limit: 5
-rate_limited_log_interval: 10
-log_path: "./logs/app.log"
-log_max_size: 1048576 # 1MB
+rate_limited_log_interval: 1s
+log_path: "../logs/app.log"
+log_max_size: 1048576           # 1MB
 client_timeout: 30
-allowed_levels:
-  - "INFO"
-  - "WARN"
-  - "ERROR"
-  - "DEBUG"
-  - "AUDIT"
+log_levels:
+  FATAL: 5
+  ERROR: 4
+  WARN: 3
+  INFO: 2
+  DEBUG: 1
+  AUDIT: 0
+min_log_level: 0
