@@ -354,7 +354,7 @@ func (lw *LogWriter) rotate(cfg *Config) error {
 		for {
 			// New format: base + number + extension (app0.log, app1.log)
 			backupPath := fmt.Sprintf("%s_%s%s",
-				base, time.Now().Format(time.RFC3339), ext)
+				base, time.Now().Format("20060102_150405"), ext)
 			if _, err := os.Stat(backupPath); os.IsNotExist(err) {
 				if err := os.Rename(lw.filePath, backupPath); err != nil {
 
