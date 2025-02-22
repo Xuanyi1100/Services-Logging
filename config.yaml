@@ -1,22 +1,30 @@
-system_name: "LOG_SERVER"       # Name of the system
-port: 8080
-max_connections: 100
-log_format: "[%s] [%s] [%s] %s" # timestamp, log_level, host/client_id, message
-rate_limit: 5
-rate_limited_log_interval: 1s
-log_path: "./logs/app.log"
-log_max_size: 1048576           # 1MB
-client_timeout: 30
+# Log Server Configuration
+# All durations are in seconds unless specified
+
+system_name: "LOG_SERVER"       # System identifier in logs
+port: 8080                      # TCP listen port
+max_connections: 100            # Maximum simultaneous connections
+log_format: "[%s] [%s] [%s] %s" # Format: timestamp, level, source, message
+rate_limit: 5                   # Max messages per second per client
+rate_limited_log_interval: 1s   # Minimum time between rate limit warnings
+log_path: "./logs/app.log"      # Primary log file path
+log_max_size: 1048576           # Log rotation size (1MB)
+client_timeout: 30              # Connection idle timeout (seconds)
+
+# Log severity levels and priorities
 log_levels:
-  FATAL: 5
+  FATAL: 5  # Highest priority
   ERROR: 4
   WARN: 3
   INFO: 2
   DEBUG: 1
-  AUDIT: 0
-min_log_level: 0
+  AUDIT: 0  # Lowest priority
+
+min_log_level: 0  # Minimum level to log (0=include all)
+
+# Message validation parameters
 log_validation:
-  max_message_length: 1024      # Maximum message length
-  future_offset: 3600           # Allowed future time offset (seconds)
-  past_offset: 86400             # Allowed past time offset (seconds)
-  max_source_length: 256        # Maximum source length
+  max_message_length: 1024      # Characters
+  future_offset: 3600           # Max future timestamp (1 hour)
+  past_offset: 86400            # Max past timestamp (1 day)
+  max_source_length: 256        # Source field character limit

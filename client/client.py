@@ -1,3 +1,11 @@
+"""
+
+Log Server Test Client
+
+Provides testing utilities for load testing and validating server behavior.
+Supports concurrency, stress testing, and invalid message validation.
+"""
+
 import socket
 import argparse
 import time
@@ -11,14 +19,30 @@ INVALID_SOURCE = "a" * 257
 LONG_MESSAGE = "a" * 1025
 FUTURE_TIME_OFFSET = 3600*24
 PAST_TIME_OFFSET = 3600*24*365
+
 # Network Handler Component
 class NetworkClient:
+    """TCP client for sending structured log messages to server"""
+    
     def __init__(self, host='localhost', port=8080, client_id=None):
+        """Initialize connection to log server"""
         self.client_id = client_id or socket.gethostname()
         self.sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.sock.connect((host, port))
     
     def send_message(self, message, level="INFO", timestamp=time.time(), source=None):
+        """
+        Send structured log message to server
+        
+        Args:
+            message: Content text
+            level: Log severity level
+            timestamp: Optional epoch timestamp
+            source: Source identifier
+            
+        Returns:
+            Server response or error message
+        """
         if(source is None):
             source = self.client_id
         json_msg = {
@@ -41,8 +65,14 @@ class NetworkClient:
 
 # Test Suite Component
 class TestSuite:
+    """Collection of server test scenarios"""
+    
     @staticmethod
     def run_concurrency_test(host, port, thread_count):
+        """Test concurrent client connections
+        Args:
+            thread_count: Number of simultaneous clients
+        """
         def worker():
             client = NetworkClient(host, port)
             # Send 10 valid messages per client
@@ -64,6 +94,10 @@ class TestSuite:
 
     @staticmethod
     def run_stress_test(host, port, rate):
+        """Sustained high-volume message test
+        Args:
+            rate: Target messages per second
+        """
         client = NetworkClient(host, port)
         interval = 1.0 / rate
         count = 0
@@ -81,6 +115,7 @@ class TestSuite:
 
     @staticmethod
     def run_message_types_tests(host, port):
+        """Validate all supported log level types"""
         # Test all message types
         prefixes = ["INFO", "WARN", "ERROR", "DEBUG", "AUDIT"]
         for prefix in prefixes:
@@ -90,6 +125,7 @@ class TestSuite:
         
     @staticmethod
     def run_invalid_message_test(host, port):
+        """Verify server rejection of invalid messages"""
         client = NetworkClient(host, port)
         # Send invalid message
         msg = f"A invalid long message {LONG_MESSAGE}"

@@ -1,3 +1,9 @@
+/*
+Log Server Implementation
+
+Handles TCP connections, log processing, rate limiting, and log rotation.
+Uses YAML configuration for system parameters.
+*/
 package main
 
 import (
@@ -21,7 +27,7 @@ const (
 	READ_BUFFER_SIZE = 1024
 )
 
-// Configuration System
+// Config defines server configuration parameters loaded from YAML
 type Config struct {
 	SystemName             string         `yaml:"system_name"` // Name of the system
 	Port                   int            `yaml:"port"`
@@ -37,7 +43,7 @@ type Config struct {
 	LogValidation          map[string]int `yaml:"log_validation"` // Validation rules
 }
 
-// File I/O Component
+// LogWriter handles log file rotation and concurrent writes
 type LogWriter struct {
 	currentFile *os.File
 	filePath    string
@@ -45,6 +51,7 @@ type LogWriter struct {
 	mu          sync.Mutex
 }
 
+// LogMessage represents a structured log entry from clients
 type LogMessage struct {
 	Level     string  `json:"level"`
 	Message   string  `json:"message"`
@@ -52,7 +59,7 @@ type LogMessage struct {
 	Source    string  `json:"source"`
 }
 
-// Rate limiter structure, token bucket per client
+// RateLimiter implements token bucket rate limiting per client
 type RateLimiter struct {
 	tokens    map[string]int
 	lastReset time.Time
@@ -66,7 +73,9 @@ var (
 	rateLimitedLogTimes   = make(map[string]time.Time)
 )
 
-// Network Listener Component
+// startServer initializes TCP listener and connection handler
+// cfg: Server configuration parameters
+// rl: Initialized rate limiter instance
 func startServer(cfg Config, rl *RateLimiter) {
 	// 1. TCP Port Binding
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", cfg.Port))
@@ -129,6 +138,10 @@ func startServer(cfg Config, rl *RateLimiter) {
 	}
 }
 
+// handleConnection manages individual client connections
+// conn: Network connection object
+// rl: Rate limiter reference
+// cfg: Server configuration reference
 func handleConnection(conn net.Conn, rl *RateLimiter, cfg *Config) {
 	defer conn.Close()
 
@@ -196,6 +209,9 @@ func handleConnection(conn net.Conn, rl *RateLimiter, cfg *Config) {
 	}
 }
 
+// loadConfig reads and parses YAML configuration file
+// Returns: Initialized Config struct
+// Panics: On file read or parse errors
 func loadConfig() Config {
 	data, err := os.ReadFile("./config.yaml")
 	if err != nil {
@@ -209,6 +225,9 @@ func loadConfig() Config {
 	return cfg
 }
 
+// NewRateLimiter creates a rate limiter with config
+// cfg: Configuration reference
+// Returns: Initialized RateLimiter
 func NewRateLimiter(cfg *Config) *RateLimiter {
 	return &RateLimiter{
 		tokens:    make(map[string]int),
@@ -217,7 +236,9 @@ func NewRateLimiter(cfg *Config) *RateLimiter {
 	}
 }
 
-// Rate limiter methods
+// Allow checks if client has available rate limit tokens
+// clientID: Unique client identifier
+// Returns: true if request is allowed
 func (rl *RateLimiter) Allow(clientID string) bool {
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
@@ -243,9 +264,13 @@ func (rl *RateLimiter) Allow(clientID string) bool {
 	return true
 }
 
-// Log Processing Component
-func processLog(conn net.Conn, clientID string, msg LogMessage,
-	rl *RateLimiter, cfg *Config) {
+// processLog validates and processes log messages
+// conn: Client connection for sending responses
+// clientID: Source client identifier
+// msg: Log message to process
+// rl: Rate limiter reference
+// cfg: Configuration reference
+func processLog(conn net.Conn, clientID string, msg LogMessage, rl *RateLimiter, cfg *Config) {
 	// 1. Format validation
 	if !isValidMessage(msg, cfg) {
 		fmt.Printf("Invalid message format from %s\n", clientID)
@@ -293,9 +318,10 @@ func processLog(conn net.Conn, clientID string, msg LogMessage,
 	conn.Write([]byte("ACK: " + msg.Message))
 }
 
-// Helper functions
-
-// Message validation based on config
+// isValidMessage validates log message against config rules
+// msg: Log message to validate
+// cfg: Configuration reference
+// Returns: true if message meets all validation criteria
 func isValidMessage(msg LogMessage, cfg *Config) bool {
 	// Check if required fields are empty
 	if msg.Level == "" {
@@ -356,6 +382,10 @@ func isValidMessage(msg LogMessage, cfg *Config) bool {
 	return true
 }
 
+// NewLogWriter creates log writer with rotation support
+// path: Base log file path
+// maxSize: Rotation size in bytes
+// Returns: Initialized LogWriter
 func NewLogWriter(path string, maxSize int64) *LogWriter {
 	return &LogWriter{
 		filePath: path,
@@ -363,6 +393,10 @@ func NewLogWriter(path string, maxSize int64) *LogWriter {
 	}
 }
 
+// Write handles log entry with rotation check
+// entry: Formatted log entry string
+// cfg: Configuration reference
+// Returns: error if write fails
 func (lw *LogWriter) Write(entry string, cfg *Config) error {
 	lw.mu.Lock()
 	defer lw.mu.Unlock()
@@ -383,6 +417,9 @@ func (lw *LogWriter) Write(entry string, cfg *Config) error {
 	return err
 }
 
+// rotate performs log file rotation
+// cfg: Configuration reference
+// Returns: error if rotation fails
 func (lw *LogWriter) rotate(cfg *Config) error {
 	// Close current file if open
 	if lw.currentFile != nil {
